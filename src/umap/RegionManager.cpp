@@ -50,22 +50,22 @@ RegionManager::setFDRegionMap(int file_fd, RegionDescriptor *rd){
 }
 
 void
-RegionManager::associateRegion(int fd, void* region, int client_fd){
+RegionManager::associateRegion(int fd, void* region, bool server, int client_fd){
   Uffd *c_uffd;
   std::lock_guard<std::mutex> lock(m_mutex);
   auto rd = m_active_regions[region];
-  getActiveUffd(client_fd);
+  getActiveUffd(server, client_fd);
   c_uffd->register_region(rd);
   m_last_iter = m_active_regions.end();
 }
 
 Uffd*
-RegionManager::getActiveUffd(int client_fd){
+RegionManager::getActiveUffd(bool server, int client_fd){
   auto it = m_client_uffds.find(client_fd);
   Uffd* c_uffd;
   if(it == m_client_uffds.end()){
     UMAP_LOG(Debug, "New region, new uffd");
-    c_uffd = new Uffd();
+    c_uffd = new Uffd(server, client_fd);
     m_client_uffds[client_fd] = c_uffd; 
   }else{
     c_uffd = it->second;
@@ -74,7 +74,7 @@ RegionManager::getActiveUffd(int client_fd){
 }
 
 void
-RegionManager::addRegion(int fd, Store* store, void* region, uint64_t region_size, char* mmap_region, uint64_t mmap_region_size, int client_fd)
+RegionManager::addRegion(int fd, Store* store, void* region, uint64_t region_size, char* mmap_region, uint64_t mmap_region_size, bool server, int client_fd)
 {
   std::lock_guard<std::mutex> lock(m_mutex);
   Uffd *c_uffd = NULL;
@@ -82,12 +82,12 @@ RegionManager::addRegion(int fd, Store* store, void* region, uint64_t region_siz
   if ( m_active_regions.empty() ) {
     UMAP_LOG(Debug, "No active regions, initializing engine");
     m_buffer = new Buffer();
-    c_uffd = getActiveUffd(client_fd);
+    c_uffd = getActiveUffd(server, client_fd);
     m_fill_workers = new FillWorkers();
     m_evict_manager = new EvictManager();
   }
   if(!c_uffd){
-    c_uffd = getActiveUffd(client_fd);
+    c_uffd = getActiveUffd(server, client_fd);
   }
 
   //Lookup if the region already exists, i.e. the file has a map already

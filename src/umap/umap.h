@@ -36,6 +36,8 @@ void* umap_ex(
   , int           fd
   , off_t         offset
   , Umap::Store*  store
+  , bool          server=false
+  , int           client_uffd=0
 );
 } // namespace Umap
 #endif // __cplusplus

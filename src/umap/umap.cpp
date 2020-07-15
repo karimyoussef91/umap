@@ -34,7 +34,7 @@ umap(
       << ", flags: " << flags
       << ", offset: " << offset
   );
-  return Umap::umap_ex(region_addr, region_size, prot, flags, fd, 0, nullptr);
+  return Umap::umap_ex(region_addr, region_size, prot, flags, fd, 0, nullptr, false, 0);
 }
 
 int
@@ -129,6 +129,8 @@ umap_ex(
   , int fd
   , off_t offset
   , Store* store
+  , bool server
+  , int client_uffd
 )
 {
   std::lock_guard<std::mutex> lock(g_mutex);
@@ -191,12 +193,16 @@ umap_ex(
     //
     mmap_size = region_size + umap_psize;
 
-    mmap_region = mmap(region_addr, mmap_size,
+    if(!server){
+      mmap_region = mmap(region_addr, mmap_size,
                        prot, flags | (MAP_ANONYMOUS | MAP_NORESERVE), -1, 0);
 
-    if (mmap_region == MAP_FAILED) {
-      UMAP_ERROR("mmap failed: " << strerror(errno));
-      return UMAP_FAILED;
+      if (mmap_region == MAP_FAILED) {
+        UMAP_ERROR("mmap failed: " << strerror(errno));
+        return UMAP_FAILED;
+      }
+    }else{
+      mmap_region = region_addr;
     }
     umap_size = region_size;
     umap_region = (void*)((uint64_t)mmap_region + umap_psize - 1);
@@ -204,9 +210,9 @@ umap_ex(
 
     if ( store == nullptr )
       store = Store::make_store(umap_region, umap_size, umap_psize, fd);
-    rm.addRegion(fd, store, umap_region, umap_size, (char*)mmap_region, mmap_size);
+    rm.addRegion(fd, store, umap_region, umap_size, (char*)mmap_region, mmap_size, server, client_uffd);
   }else{
-    rm.associateRegion(fd, reg_desc);
+    rm.associateRegion(fd, reg_desc, server, client_uffd);
   }
 
   return umap_region;

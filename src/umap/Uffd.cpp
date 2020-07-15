@@ -137,7 +137,7 @@ Uffd::ThreadEntry()
   uffd_handler();
 }
 
-Uffd::Uffd( void )
+Uffd::Uffd( bool server, int uffd_fd)
   :   WorkerPool("Uffd Manager", 1)
     , m_rm(RegionManager::getInstance())
     , m_max_fault_events(m_rm.get_max_fault_events())
@@ -147,9 +147,13 @@ Uffd::Uffd( void )
   UMAP_LOG(Debug, "\n maximum fault events: " << m_max_fault_events
                   << "\n            page size: " << m_page_size);
 
-  if ((m_uffd_fd = syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK)) < 0)
-    UMAP_ERROR("userfaultfd syscall not available in this kernel: "
-        << strerror(errno));
+  if(server){
+    m_uffd_fd = uffd_fd;
+  }else{
+    if ((m_uffd_fd = syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK)) < 0)
+      UMAP_ERROR("userfaultfd syscall not available in this kernel: "
+          << strerror(errno));
+  }
 
   if (pipe2(m_pipe, 0) < 0)
     UMAP_ERROR("userfaultfd pipe failed: " << strerror(errno));

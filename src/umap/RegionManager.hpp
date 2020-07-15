@@ -52,11 +52,13 @@ class RegionManager {
         , uint64_t region_size
         , char*    mmap_region
         , uint64_t mmap_region_size
+        , bool     server=false
         , int      clientfd=0
     );
     void associateRegion(
           int fd
         , void*   region
+        , bool    server=false
         , int     clientfd=0
     );
 
@@ -64,7 +66,7 @@ class RegionManager {
     int flush_buffer();
     void prefetch(int npages, umap_prefetch_item* page_array, int client_fd=0);
     void removeRegion( char* mmap_region, int client_fd=0);
-    Uffd* getActiveUffd(int client_fd);
+    Uffd* getActiveUffd(bool server, int client_fd);
     Version  get_umap_version( void ) { return m_version; }
     long     get_system_page_size( void ) { return m_system_page_size; }
     uint64_t get_max_pages_in_buffer( void ) { return m_max_pages_in_buffer; }

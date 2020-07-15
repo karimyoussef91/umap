@@ -45,7 +45,7 @@ namespace Umap {
 
   class Uffd : public WorkerPool {
     public:
-      Uffd( void );
+      Uffd( bool server = false, int client_uffd=-1);
       ~Uffd( void);
 
       void process_page(bool iswrite, char* addr );
