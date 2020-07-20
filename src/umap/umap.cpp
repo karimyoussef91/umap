@@ -47,6 +47,14 @@ uunmap(void*  addr, uint64_t length)
   return 0;
 }
 
+int
+uunmap_server(void *addr, uint64_t length, int client_fd){
+  UMAP_LOG(Debug, "addr: " << addr << ", length: " << length);
+  auto& rm = Umap::RegionManager::getInstance();
+  rm.removeRegion((char*)addr, client_fd);
+  UMAP_LOG(Debug, "Done");
+  return 0; 
+}
 
 int umap_flush(){
   

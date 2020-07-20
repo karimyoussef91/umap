@@ -65,8 +65,7 @@ int UmapServInfo::setup_remote_umap_handle(){
   strcpy(params.name, filename.c_str());
 
   ::write(umap_server_fd, &params, sizeof(params));
-  uffd = init_client_uffd();
-        // recieve memfd and region size
+  // recieve memfd and region size
   sock_fd_read(umap_server_fd, &(loc), sizeof(region_loc), &(memfd));
   std::cout<<"c: recv memfd ="<<memfd<<" sz ="<<loc.size<<std::endl;
 
@@ -77,14 +76,12 @@ int UmapServInfo::setup_remote_umap_handle(){
   }
 
   std::cout<<"mmap:"<<std::hex<< base_addr<<std::endl;
+  //Tell server that the mmap is complete
+  ::write(umap_server_fd, "\x00", 1);
 
-  // send userfault fd
-  std::cout<<"Send uffd "<<uffd<<std::endl;
-  sock_fd_write(umap_server_fd, &base_addr, sizeof(base_addr), uffd);
-
+  //Wait for the server to register the region to uffd
   sock_recv(umap_server_fd, (char*)&status, 1);
   std::cout<<"Done setting the uffd"<<std::endl;
-  ::close(uffd);
   return 0;
 }
 
@@ -94,14 +91,16 @@ void UmapServInfo::remove_remote_umap_handle()
   ActionParam params;
   params.act = uffd_actions::unmap;
   strcpy(params.name, filename.c_str());
-  munmap(loc.base_addr, loc.size);
   ::write(umap_server_fd, &params, sizeof(params));
   sock_recv(umap_server_fd, (char*)&status, 1);
   std::cout<<"Done removing the uffd handling"<<std::endl;
+  munmap(loc.base_addr, loc.size);
 }
 
 UmapServInfo* ClientManager::cs_umap(std::string filename){
   int umap_server_fd;
+  int uffd;
+  int fake_var;
   UmapServInfo *ret = NULL;
   if(file_conn_map.find(filename)!=file_conn_map.end()){ 
     UMAP_LOG(Error, "file already mapped for the application");
@@ -111,8 +110,11 @@ UmapServInfo* ClientManager::cs_umap(std::string filename){
         UMAP_LOG(Error, "unable to setup connection with file server");
         return ret;
       }
+      uffd = init_client_uffd();
+      sock_fd_write(umap_server_fd, &fake_var, sizeof(int), uffd);
+      ::close(uffd);
     }
-    ret = new UmapServInfo(umap_server_fd, filename);
+    ret = new UmapServInfo(umap_server_fd, filename, uffd);
     file_conn_map[filename] = ret;
   }
   return ret;
@@ -129,7 +131,7 @@ void ClientManager::cs_uunmap(std::string filename){
   }
 }
 
-void* ClientManager::map_req(std::string filename){
+void* ClientManager::map_req(std::string filename, int prot, int flags){
   auto info = cs_umap(filename);
   if(info){
     return info->loc.base_addr;
@@ -148,8 +150,6 @@ int ClientManager::unmap_req(char *filename){
   }
 }
 
-typedef void *(*funcptr)(void*);
-
 int UmapServiceThread::start_thread(){
   if (pthread_create(&t, NULL, ThreadEntryFunc, this) != 0){
     UMAP_ERROR("Failed to launch thread");
@@ -159,12 +159,11 @@ int UmapServiceThread::start_thread(){
     return 0;
 }
 
-void UmapServiceThread::submitUmapRequest(std::string filename, uint64_t csfd){
+void *UmapServiceThread::submitUmapRequest(std::string filename, uint64_t csfd){
   struct stat st;
   int memfd=-1;
   int ffd = -1;
-  char* addr;
-  int uffd;
+  char status;
 
   mappedRegionInfo *map_reg = mgr->find_mapped_region(filename);
   if(!map_reg){
@@ -184,16 +183,37 @@ void UmapServiceThread::submitUmapRequest(std::string filename, uint64_t csfd){
           //Todo: add error handling code
     next_region_start_addr += st.st_size;
   }
+  //Sending the memfd
   sock_fd_write(csfd, (char*)&(map_reg->reg), sizeof(region_loc), map_reg->memfd);
-  sock_fd_read(csfd, &addr, sizeof(char*), &uffd);
-  printf("s: recv uffd\n");
+  //Wait for the memfd to get mapped by the client
+  sock_recv(csfd, (char*)&status, 1);
+  //uffd is already present with the UmapServiceThread
   printf("s: addr: %p uffd: %d map_len=%d\n",map_reg->reg.base_addr,uffd, map_reg->reg.size);
-  Umap::umap_ex(map_reg->reg.base_addr, map_reg->reg.size, /*int prot*/0,/* int flags*/0, ffd, 0, NULL, true, uffd); //prot and flags need to be set 
+  return Umap::umap_ex(map_reg->reg.base_addr, map_reg->reg.size, /*int prot*/0,/* int flags*/0, ffd, 0, NULL, true, uffd); //prot and flags need to be set 
+}
+
+int UmapServiceThread::submitUnmapRequest(std::string filename, uint64_t csfd){
+  mappedRegionInfo *map_reg = mgr->find_mapped_region(filename);
+  if(map_reg){
+    //We could move the ref count of regions at this level
+    return uunmap_server(map_reg->reg.base_addr, map_reg->reg.size, uffd); 
+  }else{
+    UMAP_LOG(Error, "No such file mapped");
+    return -1;
+  }
 }
   
 void* UmapServiceThread::serverLoop(){
   ActionParam params;
+  int nready;
+  struct pollfd pollfds[2]={{ .fd = csfd, .events = POLLIN, .revents = 0 },
+           { .fd = pipefds[0], .events = POLLIN | POLLRDHUP | POLLPRI, .revents = 0 }};
   for(;;){
+    //Do poll to determine if the client has died
+    nready = poll(pollfds, 2, -1);
+    if(nready==-1 || pollfds[1].revents){
+      break;
+    }
     //get the filename and the action from the client
     ::read(csfd, &params, sizeof(params));
     //decode if it is a request to unmap or map
@@ -201,15 +221,30 @@ void* UmapServiceThread::serverLoop(){
       std::string filename(params.name);
       submitUmapRequest(filename, csfd);
     }else{
+      std::string filename(params.name);
+      submitUnmapRequest(filename, csfd);
       //yet to implement submitUnmapRequest
     }
+    //operation completed
+    ::write(csfd, "\x00", 1);
+    pollfds[0].revents = 0;
+    pollfds[1].revents = 0;
   }
 }
 
-void UmapServerManager::start_service_thread(int csfd){
-  UmapServiceThread *t = new UmapServiceThread(csfd, this);
+void UmapServerManager::start_service_thread(int csfd, int uffd){
+  UmapServiceThread *t = new UmapServiceThread(csfd, uffd, this);
   if(!t->start_thread())
     service_threads.push_back(t);
+}
+
+void UmapServerManager::stop_service_threads(){
+  UmapServiceThread *t;
+  while(!service_threads.empty()){
+    t = service_threads.back();
+    service_threads.pop_back();
+    delete t;
+  }
 }
 
 void UmapServerManager::add_mapped_region(std::string filename, mappedRegionInfo* m){
@@ -217,8 +252,11 @@ void UmapServerManager::add_mapped_region(std::string filename, mappedRegionInfo
 }
 
 void start_umap_service(int csfd){
+  int fake_var;
+  int uffd;
   UmapServerManager *usm = UmapServerManager::getInstance();
-  usm->start_service_thread(csfd);
+  sock_fd_read(csfd, &fake_var, sizeof(int), &uffd);
+  usm->start_service_thread(csfd, uffd);
 }
 
 } //End of Umap namespace

@@ -5,6 +5,7 @@
 
 #include "socket.h"
 #include <unistd.h>
+#include <poll.h>
 
 #define NAME_SIZE 100
 
@@ -40,7 +41,7 @@ namespace Umap{
       int setup_remote_umap_handle();
       void remove_remote_umap_handle();
     public:
-      UmapServInfo(int fd, std::string fname):umap_server_fd(fd),filename(fname){
+      UmapServInfo(int sfd, std::string fname, int ufd):umap_server_fd(sfd),filename(fname),uffd(ufd){
         setup_remote_umap_handle();
       }
       ~UmapServInfo(){
@@ -50,6 +51,7 @@ namespace Umap{
   class ClientManager{
     private:
       std::string umap_server_path;
+      int umap_server_fd;
       static ClientManager *instance;
       std::map<std::string, UmapServInfo*> file_conn_map; 
       
@@ -67,7 +69,7 @@ namespace Umap{
         return instance;
       }
 
-      void *map_req(std::string filename);
+      void *map_req(std::string filename, int prot, int flags);
       int unmap_req(char *filename);
   };
 
@@ -84,18 +86,26 @@ namespace Umap{
    
   class UmapServiceThread{
     private:
-      uint64_t csfd;
-      pthread_t t;
+      int               csfd;
+      pthread_t         t;
       UmapServerManager *mgr;
+      int               uffd;
+      int               pipefds[2];
     public:
-      UmapServiceThread(uint64_t fd, UmapServerManager *m):csfd(fd),mgr(m){}
-      void submitUmapRequest(std::string filename, uint64_t csfd);
+      UmapServiceThread(uint64_t fd, int ufd, UmapServerManager *m):csfd(fd),mgr(m),uffd(ufd){
+         pipe(pipefds); 
+      }
+      void *submitUmapRequest(std::string filename, uint64_t csfd);
+      int submitUnmapRequest(std::string filename, uint64_t csfd);
       void *serverLoop();
       int start_thread();
       static void *ThreadEntryFunc(void *p){
         return ((UmapServiceThread*)p)->serverLoop();
       }
-      ~UmapServiceThread();
+      ~UmapServiceThread(){
+      //kill the thread signal
+        ::write(pipefds[1],0,1); 
+      }
   };
    
   class UmapServerManager{
@@ -121,7 +131,8 @@ namespace Umap{
           Instance = new UmapServerManager();
         return Instance;
       }
-      void start_service_thread(int csfd);
+      void start_service_thread(int csfd, int uffd);
+      void stop_service_threads(); 
   };
 
   void start_umap_service(int csfd);

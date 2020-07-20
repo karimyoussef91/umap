@@ -65,6 +65,12 @@ int uunmap(
   , size_t length
 );
 
+int uunmap_server(
+    void*  addr
+  , size_t length
+  , int client_fd
+);
+
 int umap_flush(); 
 
 struct umap_prefetch_item {
