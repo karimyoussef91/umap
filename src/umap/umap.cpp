@@ -186,8 +186,10 @@ umap_ex(
       << ", page size is: " << rm.get_umap_page_size());
   }
 
-  if (!(flags & UMAP_PRIVATE) || flags & ~(UMAP_PRIVATE|UMAP_FIXED)) {
-    UMAP_ERROR("Invalid flags: " << std::hex << flags);
+  if(!server){
+    if (!(flags & UMAP_PRIVATE) || flags & ~(UMAP_PRIVATE|UMAP_FIXED)) {
+      UMAP_ERROR("Invalid flags: " << std::hex << flags);
+    }
   }
 
   reg_desc = rm.isFDRegionPresent(fd);

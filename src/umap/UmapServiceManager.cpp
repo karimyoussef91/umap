@@ -71,7 +71,7 @@ int UmapServInfo::setup_remote_umap_handle(){
 
   //Wait for the server to register the region to uffd
   sock_recv(umap_server_fd, (char*)&status, 1);
-  std::cout<<"Done setting the uffd"<<std::endl;
+  std::cout<<"Done registering file to uffd"<<std::endl;
   return 0;
 }
 
@@ -100,10 +100,9 @@ int submit_uunmap_req(char *filename){
 }
 
 UmapServInfo* ClientManager::cs_umap(std::string filename, int prot, int flags){
-  int umap_server_fd;
-  int uffd;
   umap_file_params args = {.prot = prot, .flags = flags};
   int dummy=0;
+  int uffd=0;
   
   UmapServInfo *ret = NULL;
   if(file_conn_map.find(filename)!=file_conn_map.end()){ 
@@ -111,7 +110,7 @@ UmapServInfo* ClientManager::cs_umap(std::string filename, int prot, int flags){
     UMAP_LOG(Error, "file already mapped for the application");
   }else{
     if(!umap_server_fd){
-      if(setup_uds_connection(&umap_server_fd, umap_server_path.c_str())<=0){
+      if(setup_uds_connection(&umap_server_fd, umap_server_path.c_str()) < 0){
         UMAP_LOG(Error, "unable to setup connection with file server");
         return ret;
       }
@@ -119,7 +118,7 @@ UmapServInfo* ClientManager::cs_umap(std::string filename, int prot, int flags){
       sock_fd_write(umap_server_fd, &dummy, sizeof(int), uffd);
       ::close(uffd);
     }
-    ret = new UmapServInfo(umap_server_fd, filename, args, uffd);
+    ret = new UmapServInfo(umap_server_fd, filename, args);
     file_conn_map[filename] = ret;
   }
   return ret;
@@ -279,7 +278,7 @@ void umap_server(std::string filename){
   struct sockaddr_un addr;
 
   memset(&addr, 0, sizeof(addr));
-  snprintf(addr.sun_path, sizeof(addr.sun_path), "/tmp/uffd-server");
+  snprintf(addr.sun_path, sizeof(addr.sun_path), UMAP_SERVER_PATH);
   addr.sun_family = AF_UNIX;
   unlink(addr.sun_path);
   bind(sfd, (struct sockaddr*)&addr, sizeof(addr));

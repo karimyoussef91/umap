@@ -8,6 +8,7 @@
 #include <poll.h>
 
 #define NAME_SIZE 100
+#define UMAP_SERVER_PATH "/tmp/umap-server"
 
 namespace Umap{
 
@@ -39,7 +40,6 @@ namespace Umap{
     friend class ClientManager;
     private:
       int memfd;
-      long uffd;
       std::string filename;
       umap_file_params args; 
       region_loc loc;
@@ -48,7 +48,7 @@ namespace Umap{
       int setup_remote_umap_handle();
       void remove_remote_umap_handle();
     public:
-      UmapServInfo(int sfd, std::string fname, umap_file_params a, int ufd):umap_server_fd(sfd),filename(fname),uffd(ufd),args(a){
+      UmapServInfo(int sfd, std::string fname, umap_file_params a):umap_server_fd(sfd),filename(fname),args(a){
         setup_remote_umap_handle();
       }
       ~UmapServInfo(){
@@ -63,7 +63,7 @@ namespace Umap{
       std::map<std::string, UmapServInfo*> file_conn_map; 
       
       ClientManager(){
-        umap_server_path = "/tmp/umap_server";
+        umap_server_path =UMAP_SERVER_PATH;
       }
 
       UmapServInfo *cs_umap(std::string filename, int, int);
