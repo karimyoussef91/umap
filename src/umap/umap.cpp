@@ -47,14 +47,7 @@ uunmap(void*  addr, uint64_t length)
   return 0;
 }
 
-int
-uunmap_server(void *addr, uint64_t length, int client_fd){
-  UMAP_LOG(Debug, "addr: " << addr << ", length: " << length);
-  auto& rm = Umap::RegionManager::getInstance();
-  rm.removeRegion((char*)addr, client_fd);
-  UMAP_LOG(Debug, "Done");
-  return 0; 
-}
+//Todo: Might replace this implementation with a call to a function within Umap namespace
 
 int umap_flush(){
   
@@ -127,6 +120,15 @@ umapcfg_get_max_fault_events( void )
 namespace Umap {
   // A global variable to ensure thread-safety
   std::mutex g_mutex;
+
+int
+uunmap_server(void *addr, uint64_t length, int client_fd){
+  UMAP_LOG(Debug, "addr: " << addr << ", length: " << length);
+  auto& rm = Umap::RegionManager::getInstance();
+  rm.removeRegion((char*)addr, client_fd);
+  UMAP_LOG(Debug, "Done");
+  return 0; 
+}
 
 void*
 umap_ex(

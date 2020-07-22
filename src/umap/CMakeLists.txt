@@ -17,7 +17,7 @@ set(umapheaders
       RegionDescriptor.hpp
       Uffd.hpp
       umap.h
-      socket.h
+      socket.hpp
       WorkQueue.hpp
       WorkerPool.hpp
       UmapServiceManager.hpp
@@ -36,7 +36,7 @@ set(umapsrc
     RegionManager.cpp
     Uffd.cpp
     umap.cpp
-    socket.c
+    socket.cpp
     UmapServiceManager.cpp
     store/Store.cpp
     store/StoreFile.cpp

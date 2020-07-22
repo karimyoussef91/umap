@@ -39,6 +39,11 @@ void* umap_ex(
   , bool          server=false
   , int           client_uffd=0
 );
+int uunmap_server(
+    void*  addr
+  , size_t length
+  , int client_fd
+);
 } // namespace Umap
 #endif // __cplusplus
 
@@ -65,10 +70,18 @@ int uunmap(
   , size_t length
 );
 
-int uunmap_server(
-    void*  addr
-  , size_t length
-  , int client_fd
+void* client_umap(
+    char *filename
+  , int prot
+  , int flags
+);
+
+int client_uunmap(
+    char *filename
+);
+
+void umap_server(
+std::string filename //presently unused
 );
 
 int umap_flush(); 

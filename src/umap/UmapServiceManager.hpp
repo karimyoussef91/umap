@@ -3,7 +3,7 @@
 #include <vector>
 #include <map>
 
-#include "socket.h"
+#include "socket.hpp"
 #include <unistd.h>
 #include <poll.h>
 
@@ -23,10 +23,16 @@ namespace Umap{
     uint64_t size;
     void *base_addr;
   }region_loc;
+ 
+  typedef struct {
+    int prot;
+    int flags;
+  }umap_file_params;
 
   typedef struct{
     uffd_actions act;
     char name[NAME_SIZE];
+    umap_file_params args;
   }ActionParam;
 
   class UmapServInfo{
@@ -35,13 +41,14 @@ namespace Umap{
       int memfd;
       long uffd;
       std::string filename;
+      umap_file_params args; 
       region_loc loc;
       int umap_server_fd;
 
       int setup_remote_umap_handle();
       void remove_remote_umap_handle();
     public:
-      UmapServInfo(int sfd, std::string fname, int ufd):umap_server_fd(sfd),filename(fname),uffd(ufd){
+      UmapServInfo(int sfd, std::string fname, umap_file_params a, int ufd):umap_server_fd(sfd),filename(fname),uffd(ufd),args(a){
         setup_remote_umap_handle();
       }
       ~UmapServInfo(){
@@ -59,7 +66,7 @@ namespace Umap{
         umap_server_path = "/tmp/umap_server";
       }
 
-      UmapServInfo *cs_umap(std::string filename);
+      UmapServInfo *cs_umap(std::string filename, int, int);
       void cs_uunmap(std::string filename);
 
     public:
@@ -70,8 +77,9 @@ namespace Umap{
       }
 
       void *map_req(std::string filename, int prot, int flags);
-      int unmap_req(char *filename);
+      int unmap_req(std::string filename);
   };
+
 
   class mappedRegionInfo{
     friend class UmapServiceThread;
@@ -95,7 +103,7 @@ namespace Umap{
       UmapServiceThread(uint64_t fd, int ufd, UmapServerManager *m):csfd(fd),mgr(m),uffd(ufd){
          pipe(pipefds); 
       }
-      void *submitUmapRequest(std::string filename, uint64_t csfd);
+      void *submitUmapRequest(std::string filename, int prot, int flags, uint64_t csfd);
       int submitUnmapRequest(std::string filename, uint64_t csfd);
       void *serverLoop();
       int start_thread();

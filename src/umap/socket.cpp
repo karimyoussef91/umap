@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <semaphore.h>
-#include "socket.h"
+#include "socket.hpp"
 
 ssize_t sock_fd_write(int sock, void *buf, ssize_t buflen, int fd) {
   ssize_t     size;
@@ -105,6 +105,21 @@ int sock_recv(int sock, char* buf, uint64_t sz) {
   } else if (status == 0) {
     printf("Ending connection\n");
     return 1;
+  }
+  return 0;
+}
+
+int setup_uds_connection(int *fd, const char *sock_path){
+  struct sockaddr_un sock_addr;
+  
+  *fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  memset(&sock_addr, 0, sizeof(sock_addr));
+  sock_addr.sun_family = AF_UNIX;
+  strncpy(sock_addr.sun_path, sock_path, sizeof(sock_addr.sun_path));
+  if (connect(*fd, (struct sockaddr *) &sock_addr, sizeof(sock_addr)) == -1) {
+    close(*fd);
+    perror("connect");
+    return -1;
   }
   return 0;
 }
