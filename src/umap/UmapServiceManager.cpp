@@ -163,7 +163,7 @@ int UmapServiceThread::start_thread(){
     return 0;
 }
 
-void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int flags, uint64_t csfd){
+void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int flags){
   struct stat st;
   int memfd=-1;
   int ffd = -1;
@@ -196,7 +196,7 @@ void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int f
   return Umap::umap_ex(map_reg->reg.base_addr, map_reg->reg.size, prot, flags, ffd, 0, NULL, true, uffd); //prot and flags need to be set 
 }
 
-int UmapServiceThread::submitUnmapRequest(std::string filename, uint64_t csfd){
+int UmapServiceThread::submitUnmapRequest(std::string filename){
   mappedRegionInfo *map_reg = mgr->find_mapped_region(filename);
   if(map_reg){
     //We could move the ref count of regions at this level
@@ -206,7 +206,16 @@ int UmapServiceThread::submitUnmapRequest(std::string filename, uint64_t csfd){
     return -1;
   }
 }
-  
+
+int UmapServiceThread::unmapClientFiles(){
+  while(!mapped_files.empty()){
+    std::string dfile = mapped_files.back();
+    mapped_files.pop_back();
+    submitUnmapRequest(dfile);
+  }
+  return 0;
+}
+
 void* UmapServiceThread::serverLoop(){
   ActionParam params;
   int nready;
@@ -219,14 +228,15 @@ void* UmapServiceThread::serverLoop(){
       break;
     }
     //get the filename and the action from the client
-    ::read(csfd, &params, sizeof(params));
+    if(::read(csfd, &params, sizeof(params)) == 0)
+      break;
     //decode if it is a request to unmap or map
     if(params.act == uffd_actions::umap){
       std::string filename(params.name);
-      submitUmapRequest(filename, params.args.prot, params.args.flags, csfd);
+      submitUmapRequest(filename, params.args.prot, params.args.flags);
     }else{
       std::string filename(params.name);
-      submitUnmapRequest(filename, csfd);
+      submitUnmapRequest(filename);
       //yet to implement submitUnmapRequest
     }
     //operation completed
@@ -234,20 +244,32 @@ void* UmapServiceThread::serverLoop(){
     pollfds[0].revents = 0;
     pollfds[1].revents = 0;
   }
+  unmapClientFiles();
+  mgr->removeServiceThread(csfd);
+}
+
+void UmapServerManager::removeServiceThread(int csfd){
+  auto it = service_threads.find(csfd);
+  if(it == service_threads.end()){
+    UMAP_LOG(Error,"No threads found for given connection");
+  }else{
+    UmapServiceThread *t = it->second;
+    service_threads.erase(it);
+    delete(t);
+  }
 }
 
 void UmapServerManager::start_service_thread(int csfd, int uffd){
   UmapServiceThread *t = new UmapServiceThread(csfd, uffd, this);
   if(t && !t->start_thread())
-    service_threads.push_back(t);
+    service_threads[csfd] = t;
 }
 
 void UmapServerManager::stop_service_threads(){
-  UmapServiceThread *t;
-  while(!service_threads.empty()){
-    t = service_threads.back();
-    service_threads.pop_back();
-    delete t;
+  auto it=service_threads.begin();
+  while(it!=service_threads.end()){
+    UmapServiceThread *t = it->second;
+    t->stop_thread();
   }
 }
 

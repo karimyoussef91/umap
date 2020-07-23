@@ -95,24 +95,26 @@ namespace Umap{
    
   class UmapServiceThread{
     private:
-      int               csfd;
-      pthread_t         t;
-      UmapServerManager *mgr;
-      int               uffd;
-      int               pipefds[2];
+      int                  csfd;
+      pthread_t            t;
+      UmapServerManager*   mgr;
+      int                  uffd;
+      int                  pipefds[2];
+      std::vector<std::string>  mapped_files;
     public:
       UmapServiceThread(uint64_t fd, int ufd, UmapServerManager *m):csfd(fd),mgr(m),uffd(ufd){
          pipe(pipefds); 
       }
-      void *submitUmapRequest(std::string filename, int prot, int flags, uint64_t csfd);
-      int submitUnmapRequest(std::string filename, uint64_t csfd);
+      void *submitUmapRequest(std::string filename, int prot, int flags);
+      int submitUnmapRequest(std::string filename);
+      int unmapClientFiles();
       void *serverLoop();
       int start_thread();
       static void *ThreadEntryFunc(void *p){
         return ((UmapServiceThread*)p)->serverLoop();
       }
-      ~UmapServiceThread(){
-      //kill the thread signal
+      ~UmapServiceThread(){}
+      void stop_thread(){
         ::write(pipefds[1],0,1); 
       }
   };
@@ -122,8 +124,9 @@ namespace Umap{
     private:
       static UmapServerManager *Instance;
       std::map<std::string, mappedRegionInfo*> file_to_region_map;
-      std::vector<UmapServiceThread*> service_threads;
-      
+      std::map<int, UmapServiceThread*> service_threads;
+      //vector<UmapServiceThread*> zombie_list;     
+
       UmapServerManager(){}
       mappedRegionInfo *find_mapped_region(std::string filename){
         auto it = file_to_region_map.find(filename);
@@ -141,7 +144,8 @@ namespace Umap{
         return Instance;
       }
       void start_service_thread(int csfd, int uffd);
-      void stop_service_threads(); 
+      void removeServiceThread(int csfd);
+      void stop_service_threads();
   };
 
   void start_umap_service(int csfd);
