@@ -27,9 +27,9 @@
 //
 // The UFFDIO_COPY_MODE_WP is only defined in later versions of Linux (>5.0)
 //
-#ifndef UFFDIO_COPY_MODE_WP
+//#ifndef UFFDIO_COPY_MODE_WP
 #define UMAP_RO_MODE
-#endif
+//#endif
 
 #include "umap/RegionDescriptor.hpp"
 #include "umap/RegionManager.hpp"

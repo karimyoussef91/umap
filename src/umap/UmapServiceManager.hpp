@@ -64,6 +64,7 @@ namespace Umap{
       
       ClientManager(){
         umap_server_path =UMAP_SERVER_PATH;
+        umap_server_fd = 0; 
       }
 
       UmapServInfo *cs_umap(std::string filename, int, int);
