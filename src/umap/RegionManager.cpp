@@ -106,11 +106,18 @@ RegionManager::addRegion(int fd, Store* store, void* region, uint64_t region_siz
 }
 
 void
-RegionManager::removeRegion( char* region, int client_fd )
+RegionManager::removeRegion( char* region, int client_fd, int filefd) 
 {
   std::lock_guard<std::mutex> lock(m_mutex);
   auto it = m_active_regions.find(region);
   auto uit = m_client_uffds.find(client_fd);
+  
+  if(client_fd){
+    auto fit = m_fd_rd_map.find(filefd);
+    if(fit != m_fd_rd_map.end()){
+      m_fd_rd_map.erase(fit);
+    }
+  }
 
   if(uit == m_client_uffds.end()){
     UMAP_ERROR("Can't find uffd for client fd: " << client_fd);

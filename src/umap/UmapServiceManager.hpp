@@ -137,6 +137,13 @@ namespace Umap{
         }
       }
       void add_mapped_region(std::string filename, mappedRegionInfo* m);
+      void remove_mapped_region(std::string filename){
+        auto it = file_to_region_map.find(filename);
+        if(it!=file_to_region_map.end()){
+          delete it->second;
+          file_to_region_map.erase(it);
+        }
+      };
     public:
       static UmapServerManager *getInstance(){
         if(!Instance)

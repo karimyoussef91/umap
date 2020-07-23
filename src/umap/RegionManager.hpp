@@ -65,7 +65,7 @@ class RegionManager {
     void *isFDRegionPresent(int fd);
     int flush_buffer();
     void prefetch(int npages, umap_prefetch_item* page_array, int client_fd=0);
-    void removeRegion( char* mmap_region, int client_fd=0);
+    void removeRegion( char* mmap_region, int client_fd=0, int file_fd=0);
     Uffd* getActiveUffd(bool server, int client_fd);
     Version  get_umap_version( void ) { return m_version; }
     long     get_system_page_size( void ) { return m_system_page_size; }
@@ -83,7 +83,6 @@ class RegionManager {
     EvictManager* get_evict_manager() { return m_evict_manager; }
     RegionDescriptor* containing_region( char* vaddr );
     uint64_t get_num_active_regions( void ) { return (uint64_t)m_active_regions.size(); }
-
   private:
     Version  m_version;
     uint64_t m_max_pages_in_buffer;

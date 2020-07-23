@@ -193,14 +193,15 @@ void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int f
   sock_recv(csfd, (char*)&status, 1);
   //uffd is already present with the UmapServiceThread
   std::cout<<"s: addr: "<<map_reg->reg.base_addr<<" uffd: "<<uffd<<" map_len="<<map_reg->reg.size<<std::endl;
-  return Umap::umap_ex(map_reg->reg.base_addr, map_reg->reg.size, prot, flags, ffd, 0, NULL, true, uffd); //prot and flags need to be set 
+  return Umap::umap_ex(map_reg->reg.base_addr, map_reg->reg.size, prot, flags, map_reg->filefd, 0, NULL, true, uffd); //prot and flags need to be set 
 }
 
 int UmapServiceThread::submitUnmapRequest(std::string filename){
   mappedRegionInfo *map_reg = mgr->find_mapped_region(filename);
   if(map_reg){
     //We could move the ref count of regions at this level
-    return Umap::uunmap_server(map_reg->reg.base_addr, map_reg->reg.size, uffd); 
+    Umap::uunmap_server(map_reg->reg.base_addr, map_reg->reg.size, uffd, map_reg->filefd); 
+    mgr->remove_mapped_region(filename); 
   }else{
     UMAP_LOG(Error, "No such file mapped");
     return -1;
