@@ -262,7 +262,7 @@ Uffd::register_region( RegionDescriptor* rd )
 #endif
   };
 
-  UMAP_LOG(Debug,
+  UMAP_LOG(Info,
     "Registering " << (uffdio_register.range.len / m_page_size)
     << " pages from: " << (void*)(uffdio_register.range.start)
     << " - " << (void*)(uffdio_register.range.start +
@@ -294,7 +294,7 @@ Uffd::unregister_region( RegionDescriptor* rd )
     , .mode = 0
   };
 
-  UMAP_LOG(Debug,
+  UMAP_LOG(Info,
     "Unregistering " << (uffdio_register.range.len / m_page_size)
     << " pages from: " << (void*)(uffdio_register.range.start)
     << " - " << (void*)(uffdio_register.range.start +

@@ -26,7 +26,7 @@ namespace Umap {
         : m_umap_region(umap_region), m_umap_region_size(umap_size)
         , m_mmap_region(mmap_region), m_mmap_region_size(mmap_size)
         , m_store(store) {
-          ref_count=1;
+          ref_count=0;
 	}
 
       ~RegionDescriptor( void ) {}

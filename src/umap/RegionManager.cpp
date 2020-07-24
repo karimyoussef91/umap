@@ -128,7 +128,7 @@ RegionManager::removeRegion( char* region, int client_fd, int filefd)
   if (it == m_active_regions.end())
     UMAP_ERROR("umap fault monitor not found for: " << (void*)region);
 
-  UMAP_LOG(Debug,
+  UMAP_LOG(Info,
       "region: " << (void*)(it->second->start()) << " - " << (void*)(it->second->end())
       << ", region_size: " << it->second->size()
       << ", number of regions: " << m_active_regions.size()
@@ -138,6 +138,7 @@ RegionManager::removeRegion( char* region, int client_fd, int filefd)
   c_uffd->unregister_region(rd);
 
   if(rd->can_release()){
+    UMAP_LOG(Info, "1. releasing the region:  " << (void*)region);
     c_uffd->release_buffer(rd);
     delete rd;
     m_active_regions.erase(it);
