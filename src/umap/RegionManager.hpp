@@ -65,7 +65,7 @@ class RegionManager {
     void *isFDRegionPresent(int fd);
     int flush_buffer();
     void prefetch(int npages, umap_prefetch_item* page_array, int client_fd=0);
-    void removeRegion( char* mmap_region, int client_fd=0, int file_fd=0);
+    void removeRegion( char* mmap_region, int client_fd=0, int file_fd=0, bool client_term=false);
     Uffd* getActiveUffd(bool server, int client_fd);
     Version  get_umap_version( void ) { return m_version; }
     long     get_system_page_size( void ) { return m_system_page_size; }

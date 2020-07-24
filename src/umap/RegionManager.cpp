@@ -106,7 +106,7 @@ RegionManager::addRegion(int fd, Store* store, void* region, uint64_t region_siz
 }
 
 void
-RegionManager::removeRegion( char* region, int client_fd, int filefd) 
+RegionManager::removeRegion( char* region, int client_fd, int filefd, bool client_term) 
 {
   std::lock_guard<std::mutex> lock(m_mutex);
   auto it = m_active_regions.find(region);
@@ -135,7 +135,7 @@ RegionManager::removeRegion( char* region, int client_fd, int filefd)
   );
   
   auto rd = it->second;
-  c_uffd->unregister_region(rd);
+  c_uffd->unregister_region(rd, client_term);
 
   if(rd->can_release()){
     UMAP_LOG(Info, "1. releasing the region:  " << (void*)region);

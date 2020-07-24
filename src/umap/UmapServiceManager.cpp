@@ -2,6 +2,7 @@
 #include "umap/util/Macros.hpp"
 #include "umap.h"
 #include <iostream>
+#include <algorithm>
 #include <linux/userfaultfd.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
@@ -182,6 +183,7 @@ void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int f
     fstat(ffd, &st);
     memfd = memfd_create("uffd", 0);
     ftruncate(memfd, st.st_size);
+    mapped_files.push_back(filename);
     map_reg = new mappedRegionInfo(ffd, memfd, (void *)next_region_start_addr, st.st_size);
     mgr->add_mapped_region(filename, map_reg);
           //Todo: add error handling code
@@ -196,11 +198,11 @@ void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int f
   return Umap::umap_ex(map_reg->reg.base_addr, map_reg->reg.size, prot, flags, map_reg->filefd, 0, NULL, true, uffd); //prot and flags need to be set 
 }
 
-int UmapServiceThread::submitUnmapRequest(std::string filename){
+int UmapServiceThread::submitUnmapRequest(std::string filename, bool client_term){
   mappedRegionInfo *map_reg = mgr->find_mapped_region(filename);
   if(map_reg){
     //We could move the ref count of regions at this level
-    Umap::uunmap_server(map_reg->reg.base_addr, map_reg->reg.size, uffd, map_reg->filefd); 
+    Umap::uunmap_server(map_reg->reg.base_addr, map_reg->reg.size, uffd, map_reg->filefd, client_term); 
     mgr->remove_mapped_region(filename); 
   }else{
     UMAP_LOG(Error, "No such file mapped");
@@ -208,11 +210,20 @@ int UmapServiceThread::submitUnmapRequest(std::string filename){
   }
 }
 
+int UmapServiceThread::unmapClientFile(std::string filename){
+    //Need reference counting hereo
+  auto it = std::find(mapped_files.begin(), mapped_files.end(), filename);
+  if(it!=mapped_files.end())
+    mapped_files.erase(it);
+  submitUnmapRequest(filename, false);
+  return 0;
+}
+
 int UmapServiceThread::unmapClientFiles(){
   while(!mapped_files.empty()){
     std::string dfile = mapped_files.back();
     mapped_files.pop_back();
-    submitUnmapRequest(dfile);
+    submitUnmapRequest(dfile, true);
   }
   return 0;
 }
@@ -237,7 +248,7 @@ void* UmapServiceThread::serverLoop(){
       submitUmapRequest(filename, params.args.prot, params.args.flags);
     }else{
       std::string filename(params.name);
-      submitUnmapRequest(filename);
+      unmapClientFile(filename);
       //yet to implement submitUnmapRequest
     }
     //operation completed

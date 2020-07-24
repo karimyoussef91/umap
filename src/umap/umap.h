@@ -44,6 +44,7 @@ int uunmap_server(
   , size_t length
   , int client_fd
   , int file_fd
+  , bool client_term=false
 );
 } // namespace Umap
 #endif // __cplusplus

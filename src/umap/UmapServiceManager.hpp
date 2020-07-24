@@ -106,8 +106,9 @@ namespace Umap{
          pipe(pipefds); 
       }
       void *submitUmapRequest(std::string filename, int prot, int flags);
-      int submitUnmapRequest(std::string filename);
+      int submitUnmapRequest(std::string filename, bool client_term=false);
       int unmapClientFiles();
+      int unmapClientFile(std::string filename);
       void *serverLoop();
       int start_thread();
       static void *ThreadEntryFunc(void *p){

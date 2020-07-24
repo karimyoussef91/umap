@@ -283,25 +283,27 @@ Uffd::register_region( RegionDescriptor* rd )
 }
 
 void
-Uffd::unregister_region( RegionDescriptor* rd )
+Uffd::unregister_region( RegionDescriptor* rd, bool client_term )
 {
   //
   // Make sure and evict any/all active pages from this region that are still
   // in the Buffer
   //
-  struct uffdio_register uffdio_register = {
-      .range = { .start = (__u64)(rd->start()), .len = rd->get_mmap_size() }
-    , .mode = 0
-  };
+  if(!client_term){
+    struct uffdio_register uffdio_register = {
+        .range = { .start = (__u64)(rd->start()), .len = rd->get_mmap_size() }
+      , .mode = 0
+    };
 
-  UMAP_LOG(Info,
-    "Unregistering " << (uffdio_register.range.len / m_page_size)
-    << " pages from: " << (void*)(uffdio_register.range.start)
-    << " - " << (void*)(uffdio_register.range.start +
-                              (uffdio_register.range.len-1)));
+    UMAP_LOG(Info,
+      "Unregistering " << (uffdio_register.range.len / m_page_size)
+      << " pages from: " << (void*)(uffdio_register.range.start)
+      << " - " << (void*)(uffdio_register.range.start +
+                                (uffdio_register.range.len-1)));
 
-  if (ioctl(m_uffd_fd, UFFDIO_UNREGISTER, &uffdio_register.range))
-    UMAP_ERROR("ioctl(UFFDIO_UNREGISTER) failed: " << strerror(errno));
+    if (ioctl(m_uffd_fd, UFFDIO_UNREGISTER, &uffdio_register.range))
+      UMAP_ERROR("ioctl(UFFDIO_UNREGISTER) failed: " << strerror(errno));
+  }
   rd->rel_ref();
 }
 

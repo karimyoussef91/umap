@@ -50,7 +50,7 @@ namespace Umap {
 
       void process_page(bool iswrite, char* addr );
       void register_region( RegionDescriptor* region );
-      void unregister_region( RegionDescriptor* region );
+      void unregister_region( RegionDescriptor* region, bool client_term=false);
       void release_buffer( RegionDescriptor* region );
 
       void  enable_write_protect( void* );
