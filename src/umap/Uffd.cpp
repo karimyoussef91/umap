@@ -291,7 +291,7 @@ Uffd::unregister_region( RegionDescriptor* rd, bool client_term )
   //
   if(!client_term){
     struct uffdio_register uffdio_register = {
-        .range = { .start = (__u64)(rd->start()), .len = rd->get_mmap_size() }
+        .range = { .start = (__u64)(rd->start()), .len = rd->size() }
       , .mode = 0
     };
 
