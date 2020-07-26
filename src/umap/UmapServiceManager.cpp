@@ -169,6 +169,7 @@ void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int f
   int memfd=-1;
   int ffd = -1;
   char status;
+  void *base_addr_local;
 
   mappedRegionInfo *map_reg = mgr->find_mapped_region(filename);
   if(!map_reg){
@@ -185,6 +186,7 @@ void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int f
     ftruncate(memfd, st.st_size);
     mapped_files.push_back(filename);
     map_reg = new mappedRegionInfo(ffd, memfd, (void *)next_region_start_addr, st.st_size);
+    base_addr_local = mmap(map_reg->reg.base_addr, map_reg->reg.size, PROT_READ, MAP_SHARED|MAP_FIXED, memfd, 0);
     mgr->add_mapped_region(filename, map_reg);
           //Todo: add error handling code
     next_region_start_addr += st.st_size;
@@ -203,6 +205,7 @@ int UmapServiceThread::submitUnmapRequest(std::string filename, bool client_term
   if(map_reg){
     //We could move the ref count of regions at this level
     Umap::uunmap_server(map_reg->reg.base_addr, map_reg->reg.size, uffd, map_reg->filefd, client_term); 
+    munmap(map_reg->reg.base_addr, map_reg->reg.size);
     mgr->remove_mapped_region(filename); 
   }else{
     UMAP_LOG(Error, "No such file mapped");
