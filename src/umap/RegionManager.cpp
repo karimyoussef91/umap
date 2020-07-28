@@ -50,13 +50,11 @@ RegionManager::setFDRegionMap(int file_fd, RegionDescriptor *rd){
 }
 
 void
-RegionManager::associateRegion(int fd, void* region, bool server, int client_fd){
+RegionManager::associateRegion(int fd, void* existing_rd, bool server, int client_fd){
   Uffd *c_uffd;
-  std::lock_guard<std::mutex> lock(m_mutex);
-  auto rd = m_active_regions[region];
-  getActiveUffd(server, client_fd);
+  auto rd = (RegionDescriptor *)existing_rd;
+  c_uffd = getActiveUffd(server, client_fd);
   c_uffd->register_region(rd);
-  m_last_iter = m_active_regions.end();
 }
 
 Uffd*
@@ -148,6 +146,7 @@ RegionManager::removeRegion( char* region, int client_fd, int filefd, bool clien
   if ( m_active_regions.empty() ) {
     delete m_evict_manager; m_evict_manager = nullptr;
     delete m_fill_workers; m_fill_workers = nullptr;
+    m_client_uffds.erase(uit);
     delete c_uffd; c_uffd = nullptr;
     delete m_buffer; m_buffer = nullptr;
   }

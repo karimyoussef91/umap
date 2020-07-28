@@ -144,7 +144,7 @@ Uffd::Uffd( bool server, int uffd_fd)
     , m_page_size(m_rm.get_umap_page_size())
     , m_buffer(m_rm.get_buffer_h())
 {
-  UMAP_LOG(Debug, "\n maximum fault events: " << m_max_fault_events
+  UMAP_LOG(Info, "\n maximum fault events: " << m_max_fault_events
                   << "\n            page size: " << m_page_size);
 
   if(server){

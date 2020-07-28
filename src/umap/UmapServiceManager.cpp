@@ -206,7 +206,7 @@ int UmapServiceThread::submitUnmapRequest(std::string filename, bool client_term
     //We could move the ref count of regions at this level
     Umap::uunmap_server(map_reg->reg.base_addr, map_reg->reg.size, uffd, map_reg->filefd, client_term); 
     munmap(map_reg->reg.base_addr, map_reg->reg.size);
-    mgr->remove_mapped_region(filename); 
+    mgr->remove_mapped_region(filename);
   }else{
     UMAP_LOG(Error, "No such file mapped");
     return -1;

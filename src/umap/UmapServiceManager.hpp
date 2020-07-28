@@ -114,7 +114,7 @@ namespace Umap{
       static void *ThreadEntryFunc(void *p){
         return ((UmapServiceThread*)p)->serverLoop();
       }
-      ~UmapServiceThread(){}
+      ~UmapServiceThread(){ ::close(uffd); }
       void stop_thread(){
         ::write(pipefds[1],0,1); 
       }
