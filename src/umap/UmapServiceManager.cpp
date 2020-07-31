@@ -228,6 +228,7 @@ int UmapServiceThread::unmapClientFiles(){
     mapped_files.pop_back();
     submitUnmapRequest(dfile, true);
   }
+  Umap::terminate_handler(uffd);
   return 0;
 }
 

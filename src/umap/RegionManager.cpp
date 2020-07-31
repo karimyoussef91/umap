@@ -49,12 +49,13 @@ RegionManager::setFDRegionMap(int file_fd, RegionDescriptor *rd){
   m_fd_rd_map[file_fd] = rd;
 }
 
-void
+char *
 RegionManager::associateRegion(int fd, void* existing_rd, bool server, int client_fd){
   Uffd *c_uffd;
   auto rd = (RegionDescriptor *)existing_rd;
   c_uffd = getActiveUffd(server, client_fd);
   c_uffd->register_region(rd);
+  return rd->start();
 }
 
 Uffd*
@@ -103,6 +104,33 @@ RegionManager::addRegion(int fd, Store* store, void* region, uint64_t region_siz
   m_last_iter = m_active_regions.end();
 }
 
+//Assumption here is that all the regions registered by the 
+//Server should have been removed by now before calling this function
+//The only time the Uffd can't be found is when all the regions got
+//removed 
+void 
+RegionManager::terminateUffdHandler(int client_fd)
+{
+  std::lock_guard<std::mutex> lock(m_mutex);
+  auto uit = m_client_uffds.find(client_fd);
+  if(uit == m_client_uffds.end()){
+    UMAP_LOG(Info, "Can't find uffd for client fd: " << client_fd);
+    return;
+  }
+
+  Uffd* c_uffd = uit->second;
+  m_client_uffds.erase(uit);
+  delete c_uffd; c_uffd = nullptr;
+  
+  if(m_client_uffds.empty()){
+    delete m_evict_manager; m_evict_manager = nullptr;
+    delete m_fill_workers; m_fill_workers = nullptr;
+    m_client_uffds.erase(uit);
+    delete c_uffd; c_uffd = nullptr;
+    delete m_buffer; m_buffer = nullptr;
+  }
+}
+
 void
 RegionManager::removeRegion( char* region, int client_fd, int filefd, bool client_term) 
 {
@@ -142,7 +170,7 @@ RegionManager::removeRegion( char* region, int client_fd, int filefd, bool clien
     m_active_regions.erase(it);
   }
   m_last_iter = m_active_regions.end();
-
+#if 0
   if ( m_active_regions.empty() ) {
     delete m_evict_manager; m_evict_manager = nullptr;
     delete m_fill_workers; m_fill_workers = nullptr;
@@ -150,6 +178,7 @@ RegionManager::removeRegion( char* region, int client_fd, int filefd, bool clien
     delete c_uffd; c_uffd = nullptr;
     delete m_buffer; m_buffer = nullptr;
   }
+#endif
 }
 
 int 

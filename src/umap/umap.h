@@ -46,6 +46,9 @@ int uunmap_server(
   , int file_fd
   , bool client_term=false
 );
+void terminate_handler(
+    int client_fd
+);
 } // namespace Umap
 #endif // __cplusplus
 

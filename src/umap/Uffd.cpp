@@ -116,6 +116,7 @@ Uffd::uffd_handler( void )
       // TODO: Since the addresses are sorted, we could optimize the
       // search to continue from where it last found something.
       //
+      UMAP_LOG(Info, "Received fault event\n");
       process_page(iswrite, last_addr);
     }
   }

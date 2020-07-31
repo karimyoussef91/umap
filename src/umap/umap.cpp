@@ -121,6 +121,15 @@ namespace Umap {
   // A global variable to ensure thread-safety
   std::mutex g_mutex;
 
+void 
+terminate_handler(int client_fd)
+{
+  UMAP_LOG(Info, "terminating handler for client_fd: " << client_fd);
+  auto& rm = Umap::RegionManager::getInstance();
+  rm.terminateUffdHandler(client_fd);
+  UMAP_LOG(Info, "Done");
+}
+
 int
 uunmap_server(void *addr, uint64_t length, int client_fd, int file_fd, bool client_term){
   UMAP_LOG(Debug, "addr: " << addr << ", length: " << length);
@@ -224,7 +233,7 @@ umap_ex(
       store = Store::make_store(umap_region, umap_size, umap_psize, fd);
     rm.addRegion(fd, store, umap_region, umap_size, (char*)mmap_region, mmap_size, server, client_uffd);
   }else{
-    rm.associateRegion(fd, reg_desc, server, client_uffd);
+    umap_region = (void *)rm.associateRegion(fd, reg_desc, server, client_uffd);
   }
 
   return umap_region;
