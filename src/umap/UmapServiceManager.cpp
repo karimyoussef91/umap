@@ -3,6 +3,7 @@
 #include "umap.h"
 #include <iostream>
 #include <algorithm>
+#include <mutex>
 #include <linux/userfaultfd.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
@@ -137,6 +138,7 @@ void ClientManager::cs_uunmap(std::string filename){
 }
 
 void* ClientManager::map_req(std::string filename, int prot, int flags){
+  std::lock_guard<std::mutex> guard(cm_mutex);
   auto info = cs_umap(filename, prot, flags);
   if(info){
     return info->loc.base_addr;
@@ -145,6 +147,7 @@ void* ClientManager::map_req(std::string filename, int prot, int flags){
 }
 
 int ClientManager::unmap_req(std::string filename){
+  std::lock_guard<std::mutex> guard(cm_mutex);
   auto it = file_conn_map.find(filename);
   if(it==file_conn_map.end()){
     UMAP_LOG(Debug, "unable to find connection with file server");
@@ -171,6 +174,7 @@ void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int f
   char status;
   void *base_addr_local;
 
+  std::lock_guard<std::mutex> task_lock(mgr->sm_mutex);
   mappedRegionInfo *map_reg = mgr->find_mapped_region(filename);
   if(!map_reg){
     ffd = open(filename.c_str(),O_RDONLY);
@@ -178,6 +182,7 @@ void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int f
       std::ostringstream errStream;
       errStream << "Error"<<__func__<<"("<<__FILE__<<":"<<__LINE__<<")"<<": Could not open file"<<filename;
       perror(errStream.str().c_str());
+      //Existance of the file should be checked by the client
       exit(-1);
     }
 
@@ -197,10 +202,12 @@ void *UmapServiceThread::submitUmapRequest(std::string filename, int prot, int f
   sock_recv(csfd, (char*)&status, 1);
   //uffd is already present with the UmapServiceThread
   std::cout<<"s: addr: "<<map_reg->reg.base_addr<<" uffd: "<<uffd<<" map_len="<<map_reg->reg.size<<std::endl;
+
   return Umap::umap_ex(map_reg->reg.base_addr, map_reg->reg.size, prot, flags, map_reg->filefd, 0, NULL, true, uffd); //prot and flags need to be set 
 }
 
 int UmapServiceThread::submitUnmapRequest(std::string filename, bool client_term){
+  std::lock_guard<std::mutex> task_lock(mgr->sm_mutex); 
   mappedRegionInfo *map_reg = mgr->find_mapped_region(filename);
   if(map_reg){
     //We could move the ref count of regions at this level
@@ -214,7 +221,7 @@ int UmapServiceThread::submitUnmapRequest(std::string filename, bool client_term
 }
 
 int UmapServiceThread::unmapClientFile(std::string filename){
-    //Need reference counting hereo
+  //Need reference counting here
   auto it = std::find(mapped_files.begin(), mapped_files.end(), filename);
   if(it!=mapped_files.end())
     mapped_files.erase(it);
@@ -265,6 +272,8 @@ void* UmapServiceThread::serverLoop(){
 }
 
 void UmapServerManager::removeServiceThread(int csfd){
+  //Need to check if we need a unique_lock
+  std::lock_guard<std::mutex> task_lock(sm_mutex); 
   auto it = service_threads.find(csfd);
   if(it == service_threads.end()){
     UMAP_LOG(Error,"No threads found for given connection");
@@ -276,12 +285,14 @@ void UmapServerManager::removeServiceThread(int csfd){
 }
 
 void UmapServerManager::start_service_thread(int csfd, int uffd){
+  std::lock_guard<std::mutex> task_lock(sm_mutex); 
   UmapServiceThread *t = new UmapServiceThread(csfd, uffd, this);
   if(t && !t->start_thread())
     service_threads[csfd] = t;
 }
 
 void UmapServerManager::stop_service_threads(){
+  std::lock_guard<std::mutex> task_lock(sm_mutex); 
   auto it=service_threads.begin();
   while(it!=service_threads.end()){
     UmapServiceThread *t = it->second;

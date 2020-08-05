@@ -2,6 +2,7 @@
 #include <thread>
 #include <vector>
 #include <map>
+#include <mutex>
 
 #include "socket.hpp"
 #include <unistd.h>
@@ -57,6 +58,7 @@ namespace Umap{
   }; 
   class ClientManager{
     private:
+      std::mutex cm_mutex;
       std::string umap_server_path;
       int umap_server_fd;
       static ClientManager *instance;
@@ -76,9 +78,10 @@ namespace Umap{
           instance = new ClientManager();
         return instance;
       }
-
+      //Start Interface that need to lock: synchronizes requests from multiple threads
       void *map_req(std::string filename, int prot, int flags);
       int unmap_req(std::string filename);
+      //End of interfaces that lock
   };
 
 
@@ -101,20 +104,22 @@ namespace Umap{
       int                  uffd;
       int                  pipefds[2];
       std::vector<std::string>  mapped_files;
-    public:
-      UmapServiceThread(uint64_t fd, int ufd, UmapServerManager *m):csfd(fd),mgr(m),uffd(ufd){
-         pipe(pipefds); 
-      }
-      void *submitUmapRequest(std::string filename, int prot, int flags);
-      int submitUnmapRequest(std::string filename, bool client_term=false);
       int unmapClientFiles();
       int unmapClientFile(std::string filename);
       void *serverLoop();
-      int start_thread();
       static void *ThreadEntryFunc(void *p){
         return ((UmapServiceThread*)p)->serverLoop();
       }
+      //Lock: These are the two functions that update UmapServerManager datastructures, so they need to acquire lock
+      void *submitUmapRequest(std::string filename, int prot, int flags);
+      int submitUnmapRequest(std::string filename, bool client_term=false);
+      //End of interfaces that lock
+    public:
       ~UmapServiceThread(){ ::close(uffd); }
+      UmapServiceThread(uint64_t fd, int ufd, UmapServerManager *m):csfd(fd),mgr(m),uffd(ufd){
+         pipe(pipefds); 
+      }
+      int start_thread();
       void stop_thread(){
         ::write(pipefds[1],0,1); 
       }
@@ -123,6 +128,7 @@ namespace Umap{
   class UmapServerManager{
       friend class UmapServiceThread;
     private:
+      std::mutex sm_mutex;
       static UmapServerManager *Instance;
       std::map<std::string, mappedRegionInfo*> file_to_region_map;
       std::map<int, UmapServiceThread*> service_threads;
@@ -151,9 +157,11 @@ namespace Umap{
           Instance = new UmapServerManager();
         return Instance;
       }
+      //Start of Interfaces that obtain lock
       void start_service_thread(int csfd, int uffd);
       void removeServiceThread(int csfd);
       void stop_service_threads();
+      //End of Locking Interfaces
   };
 
   void start_umap_service(int csfd);
