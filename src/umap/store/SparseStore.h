@@ -7,6 +7,7 @@
 //////////////////////////////////////////////////////////////////////////////
 
 #include <cstdint>
+#include <atomic>
 #include "umap/store/Store.hpp"
 #include "umap/umap.h"
 
