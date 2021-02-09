@@ -26,12 +26,18 @@
 #include <umap/util/Macros.hpp>
 
 namespace Umap {
+
+    // Create mode
     SparseStore::SparseStore(size_t _rsize_, size_t _aligned_size_, std::string _root_path_, size_t _file_Size_)
       : rsize{_rsize_}, aligned_size{_aligned_size_}, root_path{_root_path_}, file_size{_file_Size_}{
       // Round file size to be multiple of page size
-      file_size = aligned_size*ceil(file_size*1.0/aligned_size);
+      // Start: Debug
+      std::cout << "requested region size: " << rsize << std::endl;
+      // End:   Debug
+      file_size = aligned_size*ceil( file_size*1.0/aligned_size );
       num_files = (uint64_t) ceil( rsize*1.0 / file_size );
       numreads = numwrites = 0;
+      read_only = false;
       file_descriptors = new file_descriptor[num_files];
       for (int i = 0 ; i < num_files ; i++){
         file_descriptors[i].id = -1;
@@ -40,15 +46,7 @@ namespace Umap {
       struct dirent *ent;
       std::string metadata_file_path = root_path + "/_metadata";
       if ((directory = opendir(root_path.c_str())) != NULL){
-        directory_creation_status = 0;
-        // Get stored file size
-        std::ifstream metadata(metadata_file_path.c_str());
-        if (!metadata.is_open()){
-          UMAP_ERROR("Failed to open metadata file" << " - " << strerror(errno));
-        }
-        else{
-          metadata >> file_size;
-        }
+        UMAP_ERROR("Directory already exist. Needs to be opened in open mode: store = new SparseStore(root_path,is_read_only); ");
       }
       else{
         directory_creation_status = mkdir(root_path.c_str(),S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
@@ -57,6 +55,8 @@ namespace Umap {
           UMAP_ERROR("Failed to open metadata file" << " - " << strerror(errno));
         }
         else{
+          metadata << file_size << std::endl;
+          // set current capacity to be the file granularity
           metadata << file_size;
         }
       }
@@ -65,20 +65,48 @@ namespace Umap {
       }
     }
 
+    // Open mode
+    SparseStore::SparseStore(std::string _root_path_, bool _read_only_)
+    : root_path{_root_path_}, read_only{_read_only_}{
+      // Check if directory exists, if not, throw error
+      DIR *directory;
+      struct dirent *ent;
+      if ((directory = opendir(root_path.c_str())) == NULL){
+        UMAP_ERROR("Base directory does not exist" << " - " << strerror(errno));
+      }
+      else{
+        directory_creation_status = 0;
+        // Get stored file size and current capacity
+        std::string metadata_file_path = root_path + "/_metadata";
+        std::ifstream metadata(metadata_file_path.c_str());
+        if (!metadata.is_open()){
+          UMAP_ERROR("Failed to open metadata file" << " - " << strerror(errno));
+        }
+        else{
+          metadata >> file_size;
+          metadata >> current_capacity;
+          numreads = numwrites = 0;
+          num_files = num_files = (uint64_t) ceil( current_capacity*1.0 / file_size );
+          file_descriptors = new file_descriptor[num_files];
+          for (int i = 0 ; i < num_files ; i++){
+            file_descriptors[i].id = -1;
+          }
+        }
+      }
+
+      closedir(directory);
+
+    }
+    
+
     SparseStore::~SparseStore(){
       UMAP_LOG(Info,"SparseStore Total Reads: " << numreads);
       UMAP_LOG(Info,"SparseStore Total Writes: " << numwrites); 
-      /* for (int i = 0 ; i < num_files ; i++){
-        if (file_descriptors[i].id != -1){
-          if (close(file_descriptors[i].id) != 0){
-            UMAP_ERROR("SparseStore: Failed to close file with id: " << i << " - " << strerror(errno));
-          }
-        }
-      } */
       delete [] file_descriptors;
     }
 
     ssize_t SparseStore::read_from_store(char* buf, size_t nb, off_t off) {
+      std::cout << "Reading..." << std::endl;
       ssize_t read = 0;
       off_t file_offset;
       int fd = get_fd(off, file_offset); 
@@ -114,10 +142,33 @@ namespace Umap {
           if (close_status != 0){
             UMAP_LOG(Warning,"SparseStore: Failed to close file with id: " << i << " - " << strerror(errno));
           }
-         return_status = return_status | close_status;
-	}
+          return_status = return_status | close_status;
+	      }  
       }
       return return_status;
+    }
+
+    size_t SparseStore::get_current_capacity(){
+      /* DIR *dir;
+      struct dirent *ent;
+      ssize_t total_size = 0;
+      if ((dir = opendir (root_path.c_str())) != NULL) {
+        while ((ent = readdir (dir)) != NULL) {
+          std::string d_name_string(ent->d_name);
+          if (d_name_string.find("metadata") == std::string::npos
+              && d_name_string.find(".") == std::string::npos
+              && d_name_string.find("..") == std::string::npos){
+            total_size += get_file_size(root_path + "/" + d_name_string);
+          }
+        }
+        closedir (dir);
+      }
+      else {
+        perror ("");
+        return 0;
+      }
+      return total_size; */
+      return current_capacity;
     }
 
     int SparseStore::get_fd(off_t offset, off_t &file_offset){
@@ -128,21 +179,54 @@ namespace Umap {
             creation_mutex.lock(); // Grab mutex (only in case of creating new file, rather than serializing a larger protion of the code)
             if (file_descriptors[fd_index].id == -1){ // Recheck the value to make sure that another thread did not already create the file
               int fd;
-              if ((fd = open(filename.c_str(), O_CREAT | O_RDWR | O_LARGEFILE | O_DIRECT, S_IRUSR | S_IWUSR)) != -1){
-                int fallocate_status;
-                if( (fallocate_status = posix_fallocate(fd,0,file_size) ) == 0){
-                  file_descriptors[fd_index].id = fd;
+              int flags = (read_only ? O_RDONLY :  O_RDWR ) | O_CREAT | O_DIRECT | O_LARGEFILE;
+              if ((fd = open(filename.c_str(), flags, S_IRUSR | S_IWUSR)) == -1){
+                // retry without O_DIRECT
+                flags = (read_only ? O_RDONLY :  O_RDWR ) | O_CREAT | O_LARGEFILE;
+                if ((fd = open(filename.c_str(), flags, S_IRUSR | S_IWUSR)) == -1){
+                   UMAP_ERROR("ERROR: Failed to open file with id: " << fd_index << " - " << strerror(errno));
                 }
-                else{
-                  UMAP_ERROR("SparseStore: fallocate() failed for file with id: " << fd_index << " - " << strerror(errno));
+                else{ 
+                  // when successfully open file:
+                  if (!read_only){ // if not read only
+                    int fallocate_status;
+                    if( (fallocate_status = posix_fallocate(fd,0,file_size) ) == 0){
+                      file_descriptors[fd_index].id = fd;
+                    }
+                    else{
+                      UMAP_ERROR("SparseStore: fallocate() failed for file with id: " << fd_index << " - " << fallocate_status);
+
+                    }
+                  } // end if not read only
                 }
               }
               else{
-                UMAP_ERROR("ERROR: Failed to open file with id: " << fd_index << " - " << strerror(errno));
-              }
+                // when successfully open file:
+                  if (!read_only){
+                    int fallocate_status;
+                    if( (fallocate_status = posix_fallocate(fd,0,file_size) ) == 0){
+                      file_descriptors[fd_index].id = fd;
+                    }
+                    else{
+                      UMAP_ERROR("SparseStore: fallocate() failed for file with id: " << fd_index << " - " << fallocate_status);
+                    }
+                  }
+               }
             }
             creation_mutex.unlock(); // Release mutex
       }
       return file_descriptors[fd_index].id;
     }
+
+  /* ssize_t SparseStore::get_file_size(const std::string file_path) {
+    std::ifstream ifs(file_path, std::ifstream::binary | std::ifstream::ate);
+    ssize_t size = ifs.tellg();
+    if (size == -1) {
+      UMAP_ERROR("Failed to get file size for: " << file_path);
+    }
+
+    return size;
+  }*/ 
 }
+
+

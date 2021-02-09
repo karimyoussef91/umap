@@ -43,7 +43,7 @@ int remove_directory(std::string root_path){
 int main(int argc, char *argv[]){
   void *region;
   unsigned long page_size = 16384;
-  uint64_t region_size_bytes = 0; // 1073741824;
+  uint64_t region_size_bytes = 1073741824;
   size_t sparsestore_file_granularity = 134217728;
   unsigned long long map_len;
   struct stat st;
@@ -108,9 +108,9 @@ int main(int argc, char *argv[]){
   // End: unmap
   }
   {
-  // Start: repeat
+  // Start: open
   Umap::SparseStore* store;
-  store = new Umap::SparseStore(region_size_bytes,page_size,root_path,sparsestore_file_granularity);
+  store = new Umap::SparseStore(root_path,false);
 
   if (store->get_directory_creation_status() != 0){
     std::cerr << "Error: Failed to create directory at " << root_path << std::endl;
