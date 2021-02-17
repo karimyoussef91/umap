@@ -31,9 +31,7 @@ namespace Umap {
     SparseStore::SparseStore(size_t _rsize_, size_t _aligned_size_, std::string _root_path_, size_t _file_Size_)
       : rsize{_rsize_}, aligned_size{_aligned_size_}, root_path{_root_path_}, file_size{_file_Size_}{
       // Round file size to be multiple of page size
-      // Start: Debug
-      std::cout << "requested region size: " << rsize << std::endl;
-      // End:   Debug
+
       file_size = aligned_size*ceil( file_size*1.0/aligned_size );
       num_files = (uint64_t) ceil( rsize*1.0 / file_size );
       numreads = numwrites = 0;
@@ -106,7 +104,6 @@ namespace Umap {
     }
 
     ssize_t SparseStore::read_from_store(char* buf, size_t nb, off_t off) {
-      std::cout << "Reading..." << std::endl;
       ssize_t read = 0;
       off_t file_offset;
       int fd = get_fd(off, file_offset); 
@@ -171,6 +168,20 @@ namespace Umap {
       return current_capacity;
     }
 
+    size_t SparseStore::get_capacity(std::string base_path){
+      size_t capacity = 0;
+      std::string metadata_path = base_path + "/_metadata";
+      std::ifstream metadata(metadata_path.c_str());
+      if (!metadata.is_open()){
+        UMAP_ERROR("Failed to open metadata file" << " - " << strerror(errno));
+      }
+      else{
+        metadata.ignore ( std::numeric_limits<std::streamsize>::max(), '\n' );
+        metadata >> capacity;
+      }
+      return capacity;
+    }
+
     int SparseStore::get_fd(off_t offset, off_t &file_offset){
       int fd_index = offset / file_size;
       file_offset = offset % file_size; 
@@ -198,6 +209,9 @@ namespace Umap {
 
                     }
                   } // end if not read only
+                  else{
+                    file_descriptors[fd_index].id = fd;
+                  } 
                 }
               }
               else{
@@ -210,6 +224,9 @@ namespace Umap {
                     else{
                       UMAP_ERROR("SparseStore: fallocate() failed for file with id: " << fd_index << " - " << fallocate_status);
                     }
+                  }
+                  else{
+                    file_descriptors[fd_index].id = fd;
                   }
                }
             }
