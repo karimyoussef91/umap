@@ -30,8 +30,8 @@ namespace Umap {
     // Create mode
     SparseStore::SparseStore(size_t _rsize_, size_t _aligned_size_, std::string _root_path_, size_t _file_Size_)
       : rsize{_rsize_}, aligned_size{_aligned_size_}, root_path{_root_path_}, file_size{_file_Size_}{
+      
       // Round file size to be multiple of page size
-
       file_size = aligned_size*ceil( file_size*1.0/aligned_size );
       num_files = (uint64_t) ceil( rsize*1.0 / file_size );
       numreads = numwrites = 0;
@@ -140,34 +140,18 @@ namespace Umap {
             UMAP_LOG(Warning,"SparseStore: Failed to close file with id: " << i << " - " << strerror(errno));
           }
           return_status = return_status | close_status;
-	      }  
+        }  
       }
       return return_status;
     }
 
     size_t SparseStore::get_current_capacity(){
-      /* DIR *dir;
-      struct dirent *ent;
-      ssize_t total_size = 0;
-      if ((dir = opendir (root_path.c_str())) != NULL) {
-        while ((ent = readdir (dir)) != NULL) {
-          std::string d_name_string(ent->d_name);
-          if (d_name_string.find("metadata") == std::string::npos
-              && d_name_string.find(".") == std::string::npos
-              && d_name_string.find("..") == std::string::npos){
-            total_size += get_file_size(root_path + "/" + d_name_string);
-          }
-        }
-        closedir (dir);
-      }
-      else {
-        perror ("");
-        return 0;
-      }
-      return total_size; */
       return current_capacity;
     }
-
+    
+    /**
+     * To get the size of any persistent region created using SparseStore without the need to instianiate an object
+    **/ 
     size_t SparseStore::get_capacity(std::string base_path){
       size_t capacity = 0;
       std::string metadata_path = base_path + "/_metadata";
@@ -234,16 +218,6 @@ namespace Umap {
       }
       return file_descriptors[fd_index].id;
     }
-
-  /* ssize_t SparseStore::get_file_size(const std::string file_path) {
-    std::ifstream ifs(file_path, std::ifstream::binary | std::ifstream::ate);
-    ssize_t size = ifs.tellg();
-    if (size == -1) {
-      UMAP_ERROR("Failed to get file size for: " << file_path);
-    }
-
-    return size;
-  }*/ 
 }
 
 
