@@ -173,46 +173,25 @@ namespace Umap {
       if ( file_descriptors[fd_index].id == -1 ){
             creation_mutex.lock(); // Grab mutex (only in case of creating new file, rather than serializing a larger protion of the code)
             if (file_descriptors[fd_index].id == -1){ // Recheck the value to make sure that another thread did not already create the file
-              int fd;
               int flags = (read_only ? O_RDONLY :  O_RDWR ) | O_CREAT | O_DIRECT | O_LARGEFILE;
-              if ((fd = open(filename.c_str(), flags, S_IRUSR | S_IWUSR)) == -1){
+              int fd = open(filename.c_str(), flags, S_IRUSR | S_IWUSR);
+              if (fd == -1){
                 // retry without O_DIRECT
                 flags = (read_only ? O_RDONLY :  O_RDWR ) | O_CREAT | O_LARGEFILE;
-                if ((fd = open(filename.c_str(), flags, S_IRUSR | S_IWUSR)) == -1){
+                fd = open(filename.c_str(), flags, S_IRUSR | S_IWUSR);
+                if (fd == -1){
                    UMAP_ERROR("ERROR: Failed to open file with id: " << fd_index << " - " << strerror(errno));
                 }
-                else{ 
-                  // when successfully open file:
-                  if (!read_only){ // if not read only
-                    int fallocate_status;
-                    if( (fallocate_status = posix_fallocate(fd,0,file_size) ) == 0){
-                      file_descriptors[fd_index].id = fd;
-                    }
-                    else{
-                      UMAP_ERROR("SparseStore: fallocate() failed for file with id: " << fd_index << " - " << fallocate_status);
-
-                    }
-                  } // end if not read only
-                  else{
-                    file_descriptors[fd_index].id = fd;
-                  } 
+              }
+              // when successfully open file:
+              if (!read_only){
+                int fallocate_status;
+                if( (fallocate_status = posix_fallocate(fd,0,file_size) ) != 0){
+                  UMAP_ERROR("SparseStore: fallocate() failed for file with id: " << fd_index << " - " << fallocate_status);
                 }
               }
-              else{
-                // when successfully open file:
-                  if (!read_only){
-                    int fallocate_status;
-                    if( (fallocate_status = posix_fallocate(fd,0,file_size) ) == 0){
-                      file_descriptors[fd_index].id = fd;
-                    }
-                    else{
-                      UMAP_ERROR("SparseStore: fallocate() failed for file with id: " << fd_index << " - " << fallocate_status);
-                    }
-                  }
-                  else{
-                    file_descriptors[fd_index].id = fd;
-                  }
-               }
+              // when fallocate() succeeds or when read_only
+              file_descriptors[fd_index].id = fd;
             }
             creation_mutex.unlock(); // Release mutex
       }
