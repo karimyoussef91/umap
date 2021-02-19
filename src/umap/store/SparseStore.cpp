@@ -48,6 +48,9 @@ namespace Umap {
       }
       else{
         directory_creation_status = mkdir(root_path.c_str(),S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        if (directory_creation_status != 0){
+          UMAP_ERROR("ERROR: Failed to create directory" << " - " << strerror(errno));
+        }
         std::ofstream metadata(metadata_file_path.c_str());
         if (!metadata.is_open()){
           UMAP_ERROR("Failed to open metadata file" << " - " << strerror(errno));
@@ -57,9 +60,6 @@ namespace Umap {
           // set current capacity to be the file granularity
           metadata << file_size;
         }
-      }
-      if (directory_creation_status != 0){
-        UMAP_ERROR("ERROR: Failed to create directory" << " - " << strerror(errno));
       }
     }
 
@@ -125,10 +125,6 @@ namespace Umap {
       }
       numwrites++;
       return written;
-    }
-
-    int SparseStore::get_directory_creation_status(){
-      return directory_creation_status;
     }
 
     int SparseStore::close_files(){
